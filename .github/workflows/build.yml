@@ -1,0 +1,94 @@
+name: Build and Release
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "firmware/**"
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        board:
+          - pico
+          - pico2
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          export DEBIAN_FRONTEND=noninteractive
+          sudo apt-get update
+          sudo apt-get -o Dpkg::Options::="--path-exclude=/usr/share/man/*" -o Dpkg::Options::="--path-exclude=/usr/share/doc/*" -o Dpkg::Options::="--path-exclude=/usr/share/locale*" install -y cmake gcc-arm-none-eabi build-essential
+
+      - name: Fetch Pico SDK
+        run: |
+          git clone --depth=1 https://github.com/raspberrypi/pico-sdk.git
+          cd pico-sdk
+          git submodule update --init
+
+      - name: Configure CMake
+        working-directory: firmware
+        run: |
+          cmake -B build \
+            -DPICO_SDK_PATH=$GITHUB_WORKSPACE/pico-sdk \
+            -DPICO_BOARD=${{ matrix.board }}
+
+      - name: Build firmware
+        working-directory: firmware
+        run: cmake --build build
+
+      - name: Update trunk tag
+        if: github.ref == 'refs/heads/main'
+        run: |
+          git tag -f trunk
+          git push -f origin trunk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Rename artifacts
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            VERSION=${GITHUB_REF_NAME}
+          else
+            VERSION="trunk"
+          fi
+
+          mv firmware/build/wavephoenix-usb.hex "wavephoenix-usb-${VERSION}-${{ matrix.board }}.hex"
+          mv firmware/build/wavephoenix-usb.uf2 "wavephoenix-usb-${VERSION}-${{ matrix.board }}.uf2"
+
+      - name: Upload artifacts to trunk release
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            wavephoenix-usb-*.hex
+            wavephoenix-usb-*.uf2
+          tag_name: trunk
+          name: Trunk Builds
+          body: Automated build from main branch, not guaranteed to be stable.
+          prerelease: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload artifacts to tagged release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            wavephoenix-usb-*.hex
+            wavephoenix-usb-*.uf2
+          tag_name: ${{ github.ref }}
+          name: ${{ github.ref_name }}
+          draft: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -16,7 +16,7 @@ WaveBird controller as a USB gamepad, using a WavePhoenix receiver and a Raspber
 
 ## Installation
 
-- Download the latest firmware from the [releases page](https://github.com/jamesbwanak/wavephoenix-usb/releases)
+- Download the latest firmware from the [releases page](https://github.com/loopj/wavephoenix-usb/releases)
 - Enter bootloader mode on the Raspberry Pi Pico by holding the BOOTSEL button while plugging it into your computer
 - Copy the downloaded firmware file to the Raspberry Pi Pico storage
 - Reboot the Raspberry Pi Pico
